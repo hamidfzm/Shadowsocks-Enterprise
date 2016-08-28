@@ -21,16 +21,16 @@ import (
 var debug ss.DebugLog
 
 var (
-	errAddrType      = errors.New("socks addr type not supported")
-	errVer           = errors.New("socks version not supported")
-	errMethod        = errors.New("socks only support 1 method now")
+	errAddrType = errors.New("socks addr type not supported")
+	errVer = errors.New("socks version not supported")
+	errMethod = errors.New("socks only support 1 method now")
 	errAuthExtraData = errors.New("socks authentication get extra data")
-	errReqExtraData  = errors.New("socks request get extra data")
-	errCmd           = errors.New("socks command not supported")
+	errReqExtraData = errors.New("socks request get extra data")
+	errCmd = errors.New("socks command not supported")
 )
 
 const (
-	socksVer5       = 5
+	socksVer5 = 5
 	socksCmdConnect = 1
 )
 
@@ -40,7 +40,7 @@ func init() {
 
 func handShake(conn net.Conn) (err error) {
 	const (
-		idVer     = 0
+		idVer = 0
 		idNmethod = 1
 	)
 	// version identification and method selection message in theory can have
@@ -53,7 +53,7 @@ func handShake(conn net.Conn) (err error) {
 	var n int
 	ss.SetReadTimeout(conn)
 	// make sure we get the nmethod field
-	if n, err = io.ReadAtLeast(conn, buf, idNmethod+1); err != nil {
+	if n, err = io.ReadAtLeast(conn, buf, idNmethod + 1); err != nil {
 		return
 	}
 	if buf[idVer] != socksVer5 {
@@ -61,13 +61,16 @@ func handShake(conn net.Conn) (err error) {
 	}
 	nmethod := int(buf[idNmethod])
 	msgLen := nmethod + 2
-	if n == msgLen { // handshake done, common case
+	if n == msgLen {
+		// handshake done, common case
 		// do nothing, jump directly to send confirmation
-	} else if n < msgLen { // has more methods to read, rare case
+	} else if n < msgLen {
+		// has more methods to read, rare case
 		if _, err = io.ReadFull(conn, buf[n:msgLen]); err != nil {
 			return
 		}
-	} else { // error, should not get extra data
+	} else {
+		// error, should not get extra data
 		return errAuthExtraData
 	}
 	// send confirmation: version 5, no authentication required
@@ -77,19 +80,19 @@ func handShake(conn net.Conn) (err error) {
 
 func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 	const (
-		idVer   = 0
-		idCmd   = 1
-		idType  = 3 // address type index
-		idIP0   = 4 // ip addres start index
+		idVer = 0
+		idCmd = 1
+		idType = 3 // address type index
+		idIP0 = 4 // ip addres start index
 		idDmLen = 4 // domain address length index
-		idDm0   = 5 // domain address start index
+		idDm0 = 5 // domain address start index
 
 		typeIPv4 = 1 // type is ipv4 address
-		typeDm   = 3 // type is domain address
+		typeDm = 3 // type is domain address
 		typeIPv6 = 4 // type is ipv6 address
 
-		lenIPv4   = 3 + 1 + net.IPv4len + 2 // 3(ver+cmd+rsv) + 1addrType + ipv4 + 2port
-		lenIPv6   = 3 + 1 + net.IPv6len + 2 // 3(ver+cmd+rsv) + 1addrType + ipv6 + 2port
+		lenIPv4 = 3 + 1 + net.IPv4len + 2 // 3(ver+cmd+rsv) + 1addrType + ipv4 + 2port
+		lenIPv6 = 3 + 1 + net.IPv6len + 2 // 3(ver+cmd+rsv) + 1addrType + ipv6 + 2port
 		lenDmBase = 3 + 1 + 1 + 2           // 3 + 1addrType + 1addrLen + 2port, plus addrLen
 	)
 	// refer to getRequest in server.go for why set buffer size to 263
@@ -97,7 +100,7 @@ func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 	var n int
 	ss.SetReadTimeout(conn)
 	// read till we get possible domain length field
-	if n, err = io.ReadAtLeast(conn, buf, idDmLen+1); err != nil {
+	if n, err = io.ReadAtLeast(conn, buf, idDmLen + 1); err != nil {
 		return
 	}
 	// check version and cmd
@@ -125,7 +128,8 @@ func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 
 	if n == reqLen {
 		// common case, do nothing
-	} else if n < reqLen { // rare case
+	} else if n < reqLen {
+		// rare case
 		if _, err = io.ReadFull(conn, buf[n:reqLen]); err != nil {
 			return
 		}
@@ -139,13 +143,13 @@ func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 	if debug {
 		switch buf[idType] {
 		case typeIPv4:
-			host = net.IP(buf[idIP0 : idIP0+net.IPv4len]).String()
+			host = net.IP(buf[idIP0 : idIP0 + net.IPv4len]).String()
 		case typeIPv6:
-			host = net.IP(buf[idIP0 : idIP0+net.IPv6len]).String()
+			host = net.IP(buf[idIP0 : idIP0 + net.IPv6len]).String()
 		case typeDm:
-			host = string(buf[idDm0 : idDm0+buf[idDmLen]])
+			host = string(buf[idDm0 : idDm0 + buf[idDmLen]])
 		}
-		port := binary.BigEndian.Uint16(buf[reqLen-2 : reqLen])
+		port := binary.BigEndian.Uint16(buf[reqLen - 2 : reqLen])
 		host = net.JoinHostPort(host, strconv.Itoa(int(port)))
 	}
 
@@ -153,16 +157,16 @@ func getRequest(conn net.Conn) (rawaddr []byte, host string, err error) {
 }
 
 type User struct {
-	Name     string
+	Name            string
 	PrivatePassword string
-	PublicPassword string
+	PublicPassword  string
 }
 
 type ServerCipher struct {
-	server string
-	user_cipher *ss.Cipher
+	server        string
+	user_cipher   *ss.Cipher
 	server_cipher *ss.Cipher
-	user User
+	user          User
 }
 
 var servers struct {
@@ -261,14 +265,14 @@ func parseServerConfig(config *ss.Config) {
 				user_cipherCache[user.PrivatePassword] = user_cipher
 			}
 
-			server_cipher, ok := server_cipherCache[user.PrivatePassword]
+			server_cipher, ok := server_cipherCache[user.PublicPassword]
 			if !ok {
 				var err error
-				user_cipher, err = ss.NewCipher(encmethod, user.PrivatePassword)
+				server_cipher, err = ss.NewCipher(encmethod, user.PublicPassword)
 				if err != nil {
 					log.Fatal("Failed generating ciphers:", err)
 				}
-				server_cipherCache[user.PrivatePassword] = server_cipher
+				server_cipherCache[user.PublicPassword] = server_cipher
 			}
 
 			servers.srvCipher[i] = &ServerCipher{server, user_cipher, server_cipher, user}
@@ -289,21 +293,16 @@ func DialWithRawAddr(rawaddr []byte, user User, server string, user_cipher *ss.C
 	}
 
 	remote = ss.NewConn(conn, server_cipher)
-	if _, err = remote.Write(rawaddr); err != nil {
-		remote.Close()
-		return nil, err
-	}
-
 	buf := make([]byte, 2)
 	buf[0] = 1
 	buf[1] = byte(len(user.Name))
 	if _, err = remote.Write(buf); err != nil {
-		conn.Close()
+		remote.Close()
 		return nil, err
 	}
 
 	if _, err = remote.Write([]byte(user.Name)); err != nil {
-		conn.Close()
+		remote.Close()
 		return nil, err
 	}
 
@@ -341,7 +340,7 @@ func createServerConn(rawaddr []byte, addr string) (remote *ss.Conn, err error) 
 	skipped := make([]int, 0)
 	for i := 0; i < n; i++ {
 		// skip failed server, but try it with some probability
-		if servers.failCnt[i] > 0 && rand.Intn(servers.failCnt[i]+baseFailCnt) != 0 {
+		if servers.failCnt[i] > 0 && rand.Intn(servers.failCnt[i] + baseFailCnt) != 0 {
 			skipped = append(skipped, i)
 			continue
 		}
@@ -460,7 +459,7 @@ func main() {
 	ss.SetDebug(debug)
 
 	if strings.HasSuffix(cmdConfig.Method, "-auth") {
-		cmdConfig.Method = cmdConfig.Method[:len(cmdConfig.Method)-5]
+		cmdConfig.Method = cmdConfig.Method[:len(cmdConfig.Method) - 5]
 		cmdConfig.Auth = true
 	}
 

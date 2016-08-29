@@ -53,18 +53,17 @@ func authenticate(conn *ss.Conn) (user User, err error) {
 	}
 	switch buf[idVersion] {
 	case version:
-		break
+		userLen := int(buf[idUser])
+		username := make([]byte, userLen)
+		if _, err = io.ReadFull(conn, username); err != nil {
+			return
+		}
+		user, err = storage.GetUser(string(username))
+		return
 	default:
 		err = fmt.Errorf("version %d not supported", buf[idVersion])
 		return
 	}
-	userLen := int(buf[idUser])
-	username := make([]byte, userLen)
-	if _, err = io.ReadFull(conn, username); err != nil {
-		return
-	}
-	user, err = storage.GetUser(string(username))
-	return
 }
 
 func getRequest(conn *ss.Conn, auth bool) (host string, ota bool, err error) {

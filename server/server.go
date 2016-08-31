@@ -43,6 +43,11 @@ const (
 var debug ss.DebugLog
 
 var storage *Storage
+var forbidden_ips map[string]bool
+
+func IPt2String(ip net.IP) string {
+	return string(ip.To16())  // Simple []byte => string conversion
+}
 
 func authenticate(conn *ss.Conn) (user User, err error) {
 
@@ -110,6 +115,19 @@ func getRequest(conn *ss.Conn, auth bool) (host string, ota bool, err error) {
 	case typeDm:
 		host = string(buf[idDm0 : idDm0 + buf[idDmLen]])
 	}
+
+	// Check whether ip is forbidden or not
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return
+	}
+	for _, ip := range ips {
+		if forbidden_ips[IPt2String(ip)] {
+			err = fmt.Errorf("IP %s is in forbidden list, drop", ip.String())
+			return
+		}
+	}
+
 	// parse port
 	port := binary.BigEndian.Uint16(buf[reqEnd - 2 : reqEnd])
 	host = net.JoinHostPort(host, strconv.Itoa(int(port)))
@@ -373,6 +391,7 @@ func main() {
 	var printVer bool
 	var core int
 	var redisServer string
+	var forbidden_ips_str string
 
 	flag.BoolVar(&printVer, "version", false, "print version")
 	flag.StringVar(&configFile, "c", "config.json", "specify config file")
@@ -383,6 +402,7 @@ func main() {
 	flag.IntVar(&core, "core", 0, "maximum number of CPU cores to use, default is determinied by Go runtime")
 	flag.BoolVar((*bool)(&debug), "d", false, "print debug message")
 	flag.StringVar(&redisServer, "redis", ":6379", "redis server")
+	flag.StringVar(&forbidden_ips_str, "forbidden-ip", "127.0.0.1", "comma seperated IP list forbidden to connect")
 
 	flag.Parse()
 
@@ -394,6 +414,16 @@ func main() {
 	ss.SetDebug(debug)
 
 	storage = NewStorage(redisServer)
+
+	forbidden_ips = make(map[string]bool)
+	for _, ip_str:= range strings.Split(forbidden_ips_str, ",") {
+		if ip := net.ParseIP(ip_str); ip != nil {
+			forbidden_ips[IPt2String(ip)] = true
+		} else {
+			log.Println("Error parsing forbbiden ip address")
+		}
+	}
+
 
 	if strings.HasSuffix(cmdConfig.Method, "-auth") {
 		cmdConfig.Method = cmdConfig.Method[:len(cmdConfig.Method) - 5]
